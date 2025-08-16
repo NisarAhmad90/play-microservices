@@ -14,12 +14,14 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Play.Common.MongoDB;
 using Play.Catalog.Service.Entities;
+using MassTransit;
+using Play.Catalog.Service.Settings;
 
 namespace Play.Catalog.Service
 {
     public class Startup
     {
-        // private ServiceSettings serviceSettings;
+        private ServiceSettings serviceSettings;
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -33,11 +35,24 @@ namespace Play.Catalog.Service
         public void ConfigureServices(IServiceCollection services)
         {
 
-
+            serviceSettings = Configuration.GetSection(nameof(ServiceSettings)).Get<ServiceSettings>();
 
             services.AddMongo().AddMongoRepository<Item>("items");
+            services.AddMassTransit(x =>
+                        {
+                            x.UsingRabbitMq((context, cfg) =>
+                            {
+                                var rabbitMQSettings = Configuration
+                                    .GetSection(nameof(RabbitMQSettings))
+                                    .Get<RabbitMQSettings>();
 
+                                cfg.Host(rabbitMQSettings.Host);
 
+                                cfg.ConfigureEndpoints(context);
+                            });
+                        });
+
+            services.AddMassTransitHostedService();
             services.AddControllers(options =>
             {
                 options.SuppressAsyncSuffixInActionNames = false;
